@@ -273,7 +273,7 @@ function tableHTML(st,end,newCard){
   });
   const total=st.pot+POS.reduce((a,p)=>a+st.bet[p],0);
   const timer=phase==="ask"?`<div class="timer"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="19" fill="none" stroke="#2c2239" stroke-width="4"/><circle id="tring" cx="22" cy="22" r="19" fill="none" stroke="var(--brand)" stroke-width="4" stroke-linecap="round" stroke-dasharray="119.4" stroke-dashoffset="${119.4*(1-left/TIME)}"/></svg><span id="tnum">${left}</span></div>`:"";
-  return`<div class="tablewrap"><div class="table">${timer}<button class="rbtn" id="rbtn">Range</button><div class="rail"></div><div class="center"><div class="pot">${fmt(total)} BB</div><div class="board">${st.board.map((c,i)=>cardHTML(c,newCard&&i===st.board.length-1?"new":"")).join("")}</div>${st.pot>0&&st.board.length?`<div class="potchip"><i></i>${fmt(st.pot)} BB</div>`:""}<div class="tag">SRP · 100bb</div></div>${h}${b}</div></div>`;
+  return`<div class="tablewrap"><div class="table">${timer}<button class="rbtn" id="rbtn">Range</button><div class="rail"></div><div class="center"><div class="pot">${fmt(total)} BB</div><div class="board">${st.board.map((c,i)=>cardHTML(c,newCard&&i===st.board.length-1?"new":"")).join("")}</div>${st.pot>0&&st.board.length?`<div class="potchip"><i></i>${fmt(st.pot)} BB</div>`:""}<div class="tag">BTN 2.5bb 오픈 · BB 콜</div></div>${h}${b}</div></div>`;
 }
 
 function grade(n,i){
