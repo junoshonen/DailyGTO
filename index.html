@@ -382,7 +382,6 @@ function answer(i,timeout){
   draw(ev,ev.length,false,false,dock);
   $("why").onclick=()=>{clearTimeout(autoId);sheet(node,i)};
   $("go").onclick=next;
-  if(right(gk)&&!timeout)autoId=setTimeout(()=>{if(!$("sheet").innerHTML)next()},1600);
 }
 
 function next(){clearTimers();$("sheet").innerHTML="";ni++;toNode()}
