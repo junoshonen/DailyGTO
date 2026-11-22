@@ -1,4 +1,4 @@
-# Daily GTO
+# DailyGTO
 
 하루 5문제 포커 GTO 퀴즈. 6max Cash 100bb, 솔버 계산 데이터 기반.
 
