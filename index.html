@@ -279,12 +279,12 @@ function tableHTML(st,end,newCard){
 function grade(n,i){
   const f=n.s[i],l=n.l[i];
   if(i===n.b||f>=.5)return["best","✓✓","Best move","var(--good)"];
-  if(f>=.2||l<=.03)return["correct","✓","Correct","var(--ok)"];
+  if(f>=.2||(f>=.05&&l<=.05))return["mix","✓","Mix","var(--ok)"];
   if(l<=.15)return["inacc","!","Inaccuracy","var(--warn)"];
   return["mistake","✗","Wrong move","var(--bad)"];
 }
 const score=(n,i)=>Math.min(1,n.s[i]/n.s[n.b]);
-const right=g=>g==="best"||g==="correct";
+const right=g=>g==="best"||g==="mix";
 const btnLabel=a=>a.k==="check"?"CHECK":a.k==="call"?"CALL":a.k==="fold"?"FOLD":a.k==="allin"?`ALL-IN<small>${fmt(a.amt)}</small>`:a.k==="raise"?`R ${fmt(a.amt)}`:`B ${fmt(a.amt)}<small>${a.t.split(" ")[1]}</small>`;
 
 function hrec(){return mode==="daily"?(rec.hands[hi]=rec.hands[hi]||{d:[]}):(hand._r=hand._r||{d:[]})}
@@ -377,7 +377,7 @@ function answer(i,timeout){
   const dock=`<div class="fb" style="--vb:${gc}">
     <div class="fb-row"><span class="fb-ic">${ic}</span><div class="fb-a"><b>${node.a[i].t}</b><span>${timeout?"Time out":gt}</span></div><div class="fb-f"><b>${(node.s[i]*100).toFixed(1)} %</b><span>Freq${node.l[i]>0?` · EV −${node.l[i].toFixed(2)}`:""}</span></div></div>
     <div class="fb-bar"><i style="width:${node.s[i]*100}%"></i></div>
-    ${i!==node.b?`<div class="fb-note">GTO: ${best.t} ${(node.s[node.b]*100).toFixed(1)}% · 정답 라인으로 진행</div>`:""}
+    ${gk==="mix"?`<div class="fb-note" style="color:var(--ok)">섞어 쓰는 선택 · 주로 ${best.t} ${(node.s[node.b]*100).toFixed(1)}%</div>`:i!==node.b?`<div class="fb-note">GTO: ${best.t} ${(node.s[node.b]*100).toFixed(1)}% · 정답 라인으로 진행</div>`:""}
     <div class="fb-btns"><button class="btn cy" id="why">해설</button><button class="btn go" id="go">계속</button></div></div>`;
   draw(ev,ev.length,false,false,dock);
   $("why").onclick=()=>{clearTimeout(autoId);sheet(node,i)};
