@@ -305,7 +305,7 @@ function draw(ev,k,end,newCard,dock){
 }
 function introHTML(){
   if(!RANGES)return"";
-  return`<div class="intro"><span><b>BTN</b> Open ${RANGES.BTN.pct}% <span class="ar">→</span> <b>BB</b> Call ${RANGES.BB.pct}%</span><button class="btn cy" id="rintro">레인지</button></div>`;
+  return`<div class="intro"><span>Preflop: <b>BTN 2.5bb 오픈</b> <span class="ar">→</span> <b>BB 콜</b></span><button class="btn cy" id="rintro">레인지</button></div>`;
 }
 function rangeSheet(tab){
   const vil=hand.hero==="BB"?"BTN":"BB";tab=tab||vil;
@@ -318,7 +318,7 @@ function rangeSheet(tab){
   $("sheet").innerHTML=`<div class="sheet" id="sh"><div class="sheet-in">
     <div class="sheet-h"><span>Preflop Range</span><button class="x" id="x" aria-label="닫기">✕</button></div>
     <div class="tabs">${["BTN","BB"].map(t=>`<button data-t="${t}" aria-pressed="${t===tab}">${RANGES[t].label}${t===hand.hero?" (나)":""}</button>`).join("")}</div>
-    <div class="htitle">${r.label}<span>${r.pct}% of hands</span></div>
+    <div class="htitle">${r.label}<span>전체 핸드 중 ${r.pct}%</span></div>
     <div class="grid">${g}</div>
     <div class="rnote">이 퀴즈가 가정한 프리플랍 레인지입니다. 포스트플랍 정답은 이 레인지를 기준으로 계산됐습니다. 레인지 자체는 솔버 결과가 아닌 근사치입니다. 칸이 일부만 차 있으면 그 비율만큼만 플레이합니다.</div>
   </div></div>`;
