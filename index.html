@@ -84,8 +84,17 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .timer svg{width:100%;height:100%;transform:rotate(-90deg)}
 .timer span{position:absolute;inset:0;display:grid;place-items:center;font:700 clamp(12px,3.4vw,15px) var(--f-m)}
 
+/* range */
+.rbtn{position:absolute;right:0;top:0;z-index:4;min-height:34px;padding:0 12px;border-radius:8px;border:1.5px solid var(--cyan);background:#0b0810;color:#dcfeff;font:700 12px var(--f-d);cursor:pointer;box-shadow:0 0 10px rgba(34,240,255,.35)}
+.intro{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 6px 5px 12px;border-radius:10px;background:var(--panel);border:1px solid var(--line);font:600 13px var(--f-m)}
+.intro b{color:var(--ink)}.intro .ar{color:var(--muted)}
+.intro .btn{flex:none;min-height:34px;padding:0 14px}
+.tabs{display:flex;gap:4px;background:var(--panel2);padding:4px;border-radius:10px}
+.tabs button{flex:1;min-height:38px;border:0;border-radius:7px;background:none;color:var(--muted);font:700 13px var(--f-d);cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--panel);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+.rnote{font:500 12px var(--f-b);color:var(--muted)}
 /* actions */
-.dock{min-height:118px;display:flex;flex-direction:column;justify-content:flex-start}
+.dock{min-height:118px;display:flex;flex-direction:column;justify-content:flex-start;gap:6px}
 .opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .opt{min-height:50px;border:0;border-radius:6px;cursor:pointer;font:800 14px var(--f-d);letter-spacing:.03em;background:var(--c);color:#0a0710;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 0 12px color-mix(in srgb,var(--c) 30%,transparent)}
 .opt.fold{color:#fff}
@@ -204,7 +213,7 @@ const isCard=t=>/^[2-9TJQKA][shdc]$/.test(t);
 // preflop: folds to BTN, BTN opens 2.5, SB folds, BB calls
 const PRE=[["UTG","F"],["HJ","F"],["CO","F"],["BTN","R",2.5],["SB","F"],["BB","C"]];
 
-let INDEX=[],mode="daily",list=[],hi=0,hand=null,ni=0,shown=0,timerId=null,left=TIME,phase="idle",lastAns=null,autoId=null;
+let RANGES=null,INDEX=[],mode="daily",list=[],hi=0,hand=null,ni=0,shown=0,timerId=null,left=TIME,phase="idle",lastAns=null,autoId=null;
 
 function events(path){
   const ev=PRE.map(([s,a,v])=>({s,a,v,pre:1}));
@@ -264,7 +273,7 @@ function tableHTML(st,end,newCard){
   });
   const total=st.pot+POS.reduce((a,p)=>a+st.bet[p],0);
   const timer=phase==="ask"?`<div class="timer"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="19" fill="none" stroke="#2c2239" stroke-width="4"/><circle id="tring" cx="22" cy="22" r="19" fill="none" stroke="var(--brand)" stroke-width="4" stroke-linecap="round" stroke-dasharray="119.4" stroke-dashoffset="${119.4*(1-left/TIME)}"/></svg><span id="tnum">${left}</span></div>`:"";
-  return`<div class="tablewrap"><div class="table">${timer}<div class="rail"></div><div class="center"><div class="pot">${fmt(total)} BB</div><div class="board">${st.board.map((c,i)=>cardHTML(c,newCard&&i===st.board.length-1?"new":"")).join("")}</div>${st.pot>0&&st.board.length?`<div class="potchip"><i></i>${fmt(st.pot)} BB</div>`:""}<div class="tag">SRP · 100bb</div></div>${h}${b}</div></div>`;
+  return`<div class="tablewrap"><div class="table">${timer}<button class="rbtn" id="rbtn">Range</button><div class="rail"></div><div class="center"><div class="pot">${fmt(total)} BB</div><div class="board">${st.board.map((c,i)=>cardHTML(c,newCard&&i===st.board.length-1?"new":"")).join("")}</div>${st.pot>0&&st.board.length?`<div class="potchip"><i></i>${fmt(st.pot)} BB</div>`:""}<div class="tag">SRP · 100bb</div></div>${h}${b}</div></div>`;
 }
 
 function grade(n,i){
@@ -291,6 +300,31 @@ function draw(ev,k,end,newCard,dock){
   const st=state(ev,k);
   app.innerHTML=`<div class="hist" id="hist">${histHTML(st,end)}</div>${tableHTML(st,end,newCard)}<div class="dock" id="dock">${dock||""}</div>`;
   const hs=$("hist");hs.scrollLeft=hs.scrollWidth;
+  $("rbtn").onclick=()=>rangeSheet();
+  const ri=$("rintro");if(ri)ri.onclick=()=>rangeSheet();
+}
+function introHTML(){
+  if(!RANGES)return"";
+  return`<div class="intro"><span><b>BTN</b> Open ${RANGES.BTN.pct}% <span class="ar">→</span> <b>BB</b> Call ${RANGES.BB.pct}%</span><button class="btn cy" id="rintro">레인지</button></div>`;
+}
+function rangeSheet(tab){
+  const vil=hand.hero==="BB"?"BTN":"BB";tab=tab||vil;
+  const r=RANGES[tab],me=clsOf(hand.hc),k=tab==="BTN"?"raise":"call";
+  let g="";
+  for(let a=0;a<13;a++)for(let c=0;c<13;c++){
+    const key=a===c?R[a]+R[c]:a<c?R[a]+R[c]+"s":R[c]+R[a]+"o",w=r.w[key]||0;
+    g+=`<div class="cell${w?"":" none"}${tab===hand.hero&&key===me?" me":""}">${w?`<div class="fill" style="height:${w*100}%"><i style="width:100%;--c:var(--${k})"></i></div>`:""}<span>${key}</span></div>`;
+  }
+  $("sheet").innerHTML=`<div class="sheet" id="sh"><div class="sheet-in">
+    <div class="sheet-h"><span>Preflop Range</span><button class="x" id="x" aria-label="닫기">✕</button></div>
+    <div class="tabs">${["BTN","BB"].map(t=>`<button data-t="${t}" aria-pressed="${t===tab}">${RANGES[t].label}${t===hand.hero?" (나)":""}</button>`).join("")}</div>
+    <div class="htitle">${r.label}<span>${r.pct}% of hands</span></div>
+    <div class="grid">${g}</div>
+    <div class="rnote">이 퀴즈가 가정한 프리플랍 레인지입니다. 포스트플랍 정답은 이 레인지를 기준으로 계산됐습니다. 레인지 자체는 솔버 결과가 아닌 근사치입니다. 칸이 일부만 차 있으면 그 비율만큼만 플레이합니다.</div>
+  </div></div>`;
+  const close=()=>{$("sheet").innerHTML=""};
+  $("x").onclick=close;$("sh").onclick=e=>{if(e.target.id==="sh")close()};
+  $("sh").querySelector(".tabs").onclick=e=>{const b=e.target.closest("button");if(b)rangeSheet(b.dataset.t)};
 }
 
 function play(target,done){
@@ -299,7 +333,7 @@ function play(target,done){
   const step=()=>{
     if(shown>=target){done(ev);return}
     shown++;const e=ev[shown-1];
-    draw(ev,shown,false,e&&e.card);
+    draw(ev,shown,false,e&&e.card,ni===0?introHTML():"");
     setTimeout(step,reduce?0:(e&&e.pre?180:420));
   };
   step();
@@ -325,7 +359,7 @@ function ask(){
   phase="ask";left=TIME;lastAns=null;
   const node=hand.nodes[ni],ev=events(node.p);
   const opts=node.a.map((a,i)=>`<button class="opt ${a.k}" data-i="${i}" style="--c:${col(a.k)}">${btnLabel(a)}</button>`).join("");
-  draw(ev,ev.length,false,false,`<div class="opts" id="opts">${opts}</div>`);
+  draw(ev,ev.length,false,false,`${ni===0?introHTML():""}<div class="opts" id="opts">${opts}</div>`);
   $("opts").onclick=e=>{const b=e.target.closest(".opt");if(b)answer(+b.dataset.i,false)};
   timerId=setInterval(()=>{left--;const n=$("tnum"),r=$("tring");if(n)n.textContent=left;if(r)r.setAttribute("stroke-dashoffset",119.4*(1-left/TIME));
     if(left<=0){const a=hand.nodes[ni].a;let i=a.findIndex(x=>x.k==="check");if(i<0)i=a.findIndex(x=>x.k==="fold");answer(i,true)}},1000);
@@ -411,8 +445,8 @@ async function summary(){
   $("more").onclick=()=>{mode="practice";list=shuffled();openHand(0)};
 }
 
-fetch("data/hands/index.json").then(r=>r.json()).then(d=>{
-  INDEX=d.hands;
+Promise.all([fetch("data/hands/index.json").then(r=>r.json()),fetch("data/ranges.json").then(r=>r.json())]).then(([d,rg])=>{
+  RANGES=rg;INDEX=d.hands;
   list=Array.from({length:N},(_,i)=>INDEX[(dayNum*N+i)%INDEX.length]);
   const open=Array.from({length:N},(_,i)=>i).find(i=>!(rec.hands[i]&&rec.hands[i].done));
   if(open==null)summary();else openHand(open);
