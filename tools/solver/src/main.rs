@@ -71,6 +71,114 @@ fn dump(game: &mut PostFlopGame, id: &str, path: &[&str], start_pot: i32) -> Val
            "actions": acts, "hands": hands})
 }
 
+
+struct Rng(u64);
+impl Rng {
+    fn next(&mut self) -> u64 { let mut x = self.0; x ^= x << 13; x ^= x >> 7; x ^= x << 17; self.0 = x; x }
+    fn f(&mut self) -> f64 { (self.next() >> 11) as f64 / (1u64 << 53) as f64 }
+}
+fn cstr(c: u8) -> String { card_to_string(c).unwrap() }
+
+// Walk forward from the current state until the hero must act (or the hand ends).
+// Villain acts by sampling its own combo's GTO strategy; chance nodes take the fixed runout.
+// At hero nodes we branch on every action the hero uses >= 10% plus the best one.
+fn walk(game: &mut PostFlopGame, hero: usize, hi: usize, vi: usize, run: &[u8],
+        nodes: &mut Vec<Value>, rng: &mut Rng, mut labels: Vec<String>) -> usize {
+    loop {
+        if game.is_terminal_node() {
+            let id = nodes.len();
+            nodes.push(json!({"end": true, "path": labels}));
+            return id;
+        }
+        if game.is_chance_node() {
+            let c = run[game.current_board().len() - 3];
+            labels.push(cstr(c));
+            game.play(c as usize);
+            continue;
+        }
+        let p = game.current_player();
+        let acts = game.available_actions();
+        if p != hero {
+            let n = game.private_cards(p).len();
+            let st = game.strategy();
+            let mut r = rng.f();
+            let mut a = acts.len() - 1;
+            for k in 0..acts.len() { r -= st[k * n + vi] as f64; if r <= 0.0 { a = k; break; } }
+            labels.push(action_label(&acts[a]));
+            game.play(a);
+            continue;
+        }
+        game.cache_normalized_weights();
+        let cards = holes_to_strings(game.private_cards(hero)).unwrap();
+        let n = cards.len();
+        let st = game.strategy();
+        let evd = game.expected_values_detail(hero);
+        let eq = game.equity(hero);
+        let w = game.normalized_weights(hero).to_vec();
+        let k = acts.len();
+        let s: Vec<f64> = (0..k).map(|a| r3(st[a * n + hi])).collect();
+        let e: Vec<f64> = (0..k).map(|a| r3(evd[a * n + hi] / BB)).collect();
+        let mut range = vec![];
+        for h in 0..n {
+            if w[h] < 1e-4 { continue; }
+            let hs: Vec<f64> = (0..k).map(|a| r3(st[a * n + h])).collect();
+            range.push(json!([cards[h], r3(w[h]), hs]));
+        }
+        let best = (0..k).max_by(|&a, &b| s[a].partial_cmp(&s[b]).unwrap()).unwrap();
+        let id = nodes.len();
+        nodes.push(json!({"path": labels.clone(), "acts": acts.iter().map(action_label).collect::<Vec<_>>(),
+                          "s": s, "evs": e, "eq": r3(eq[hi]), "best": best, "range": range}));
+        let hist = game.history().to_vec();
+        let mut next = serde_json::Map::new();
+        for a in 0..k {
+            if a == best {
+                game.apply_history(&hist);
+                game.play(a);
+                let mut l = labels.clone();
+                l.push(action_label(&acts[a]));
+                let cid = walk(game, hero, hi, vi, run, nodes, rng, l);
+                next.insert(a.to_string(), json!(cid));
+            }
+        }
+        nodes[id]["next"] = Value::Object(next);
+        return id;
+    }
+}
+
+fn hand_scripts(game: &mut PostFlopGame, count: usize, seed: u64) -> Vec<Value> {
+    let mut rng = Rng(seed | 1);
+    let flop = game.card_config().flop;
+    let mut out = vec![];
+    for s in 0..count {
+        let hero = s % 2;
+        let vil = 1 - hero;
+        game.back_to_root();
+        let hc = game.private_cards(hero).to_vec();
+        let vc = game.private_cards(vil).to_vec();
+        let hw = game.weights(hero).to_vec();
+        let vw = game.weights(vil).to_vec();
+        let cand: Vec<usize> = (0..hc.len()).filter(|&i| hw[i] > 0.2).collect();
+        let hi = cand[(rng.next() as usize) % cand.len()];
+        let (h1, h2) = hc[hi];
+        let ok = |i: usize| { let (a, b) = vc[i]; a != h1 && a != h2 && b != h1 && b != h2 };
+        let tot: f64 = (0..vc.len()).filter(|&i| ok(i)).map(|i| vw[i] as f64).sum();
+        let mut r = rng.f() * tot;
+        let mut vi = 0;
+        for i in 0..vc.len() { if !ok(i) { continue; } vi = i; r -= vw[i] as f64; if r <= 0.0 { break; } }
+        let (v1, v2) = vc[vi];
+        let used = [flop[0], flop[1], flop[2], h1, h2, v1, v2];
+        let mut run: Vec<u8> = vec![];
+        while run.len() < 2 { let c = (rng.next() % 52) as u8; if !used.contains(&c) && !run.contains(&c) { run.push(c); } }
+        let mut nodes = vec![];
+        walk(game, hero, hi, vi, &run, &mut nodes, &mut rng, vec![]);
+        out.push(json!({"hero": if hero == 0 {"BB"} else {"BTN"},
+            "hc": holes_to_strings(&[(h1, h2)]).unwrap()[0], "vc": holes_to_strings(&[(v1, v2)]).unwrap()[0],
+            "run": [cstr(run[0]), cstr(run[1])], "nodes": nodes}));
+        eprintln!("hand {} done ({} nodes)", s, out.last().unwrap()["nodes"].as_array().unwrap().len());
+    }
+    out
+}
+
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let (flop, out, mode) = (&a[1], &a[2], &a[3]);
@@ -129,4 +237,13 @@ fn main() {
                      "exploitability_pct_pot": r3(100.0 * expl / start_pot as f32), "nodes": nodes});
     std::fs::write(out, serde_json::to_string(&res).unwrap()).unwrap();
     eprintln!("wrote {}", out);
+    let nh: usize = std::env::var("HANDS").unwrap_or("0".into()).parse().unwrap();
+    if nh > 0 {
+        let seed = flop.bytes().fold(1469598103934665603u64, |h, b| (h ^ b as u64).wrapping_mul(1099511628211));
+        let hands = hand_scripts(&mut game, nh, seed);
+        let hout = out.replace(".json", ".hands.json");
+        std::fs::write(&hout, serde_json::to_string(&json!({"flop": flop, "spot": "BTN vs BB SRP 100bb",
+            "exploitability_pct_pot": r3(100.0 * expl / start_pot as f32), "hands": hands})).unwrap()).unwrap();
+        eprintln!("wrote {}", hout);
+    }
 }
